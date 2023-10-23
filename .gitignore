@@ -1,0 +1,15 @@
+/.m2/
+bin/
+build/
+.gradle/
+*._trace
+*.xtendbin
+.antlr-generator-*.jar
+org.eclipse.buildship.core.prefs
+.DS_Store
+target
+generated/
+generated-sources/
+src-gen/
+xtend-gen/
+*.xml_gen
