@@ -1,0 +1,99 @@
+grammar org.misterwalter.lisp.Lisp
+hidden(WS, ML_COMMENT, SL_COMMENT)
+import "http://www.eclipse.org/emf/2002/Ecore" as ecore
+
+generate lisp "http://www.misterwalter.org/lisp/Lisp"
+
+SExpList: LPAR {SExpList} (body+=SExpression)* RPAR;
+
+SExpression:
+	{Symbol} value=MaybePackageQualifiedSymbol |
+	{Const} value=Constant |
+	{OptionallyDottedSExpListExpr} list=OptionallyDottedSExpList |
+	{QuotedSExpressionExpr} "'" sexp=SExpression |
+	{BackquotedSExpressionExpr} "`" sexp=SExpression |
+	{CommaSExpression} "," (splice="@")? sexp=SExpression
+;
+
+// TODO: do we want the body to be * or + below?
+// I changed it to * to support some files containing '()
+OptionallyDottedSExpList:
+	LPAR {OptionallyDottedSExpList} (body+=SExpression)* ("." right=SExpression)? RPAR
+;
+
+Constant:
+	 NUMERIC | CHAR_LIT | STRING;
+
+terminal LPAR: '(';
+terminal RPAR: ')';
+
+terminal CHAR_LIT:
+'#\\' .;
+
+terminal fragment ESCAPED_CHAR:
+'\\' .;
+
+terminal fragment ESCAPED_SYMBOL_FRAGMENT:
+	'|' ('#\\|' | !('|'))* '|';
+
+terminal fragment ALPHANUM:
+'a'..'z' | 'A' .. 'Z' | '0' .. '9';
+
+terminal fragment ALPHA:
+	'a'..'z' | 'A'..'Z';
+
+// CLHS 2.3.1
+terminal fragment SIGN:
+	'+'|'-';
+
+terminal fragment DIGIT:
+	'0'..'9';
+
+terminal RATIO:
+	SIGN? DIGIT+ '/' DIGIT+;
+
+terminal INTEGER:
+	SIGN? DIGIT+ '.'?;
+
+terminal NUMERIC:
+	INTEGER | RATIO;
+
+terminal STRING: 
+	'"' ( '\\'('b'|'t'|'n'|'f'|'r'|'u'|'"'|"'"|'\\') | !('\\'|'"') )* '"';
+
+// Note: we do not support curly braces in symbols unless they're escaped, due to ambiguity with hintlists
+terminal fragment SYMBOLCHAR:
+	'[' | ']' |  '!' | '?' | '$' | '@' | '%' | '^' | '+' | '-' | '*' | '/' | '=' | '>' | '<' | '&' | '_';
+
+terminal fragment SYMBOLCHAR_INCL_DIGIT:
+	(ESCAPED_CHAR | ESCAPED_SYMBOL_FRAGMENT | ALPHANUM | SYMBOLCHAR);
+
+terminal fragment SYMBOLCHAR_NODIGIT:
+	(ESCAPED_CHAR | ESCAPED_SYMBOL_FRAGMENT | ALPHA | SYMBOLCHAR);
+
+terminal SYMBOL:
+	// keyword package
+	(':' SYMBOLCHAR_INCL_DIGIT+) |
+	// symbols
+	(DIGIT* SYMBOLCHAR_NODIGIT SYMBOLCHAR_INCL_DIGIT*);
+
+// note that this can't be a lexer rule, because it would require backtracking and we don't have enough control
+// over the generated lexer to deal with that.
+MaybePackageQualifiedSymbol:
+ SYMBOL ->(':' ':'? SYMBOL)?;
+
+// https://www.eclipse.org/forums/index.php?t=msg&th=208085&goto=1061492&#msg_1061492
+terminal fragment MLC_ANY    : !( '|' | '#' );
+terminal fragment MLC_POUND  : '#'+ ( '|' MLC_BODY | MLC_ANY );
+terminal fragment MLC_BAR    : '|'+ ( MLC_ANY );
+terminal fragment MLC_BODY   : ( MLC_ANY | MLC_POUND | MLC_BAR )* '|'+ '#';
+terminal ML_COMMENT          : '#|' MLC_BODY;
+ 
+terminal SL_COMMENT: 
+    ';' !('\n'|'\r')* ('\r'? '\n')?;
+
+terminal WS: 
+    (' '|'\t'|'\r'|'\n')+;
+ 
+terminal ANY_OTHER: 
+    .;
